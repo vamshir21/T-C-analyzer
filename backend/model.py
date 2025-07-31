@@ -1,78 +1,84 @@
-from transformers import pipeline, AutoTokenizer
-import re
+import torch
+from transformers import pipeline
 
-# Load tokenizer and summarizer model
-tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-cnn")
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+# Auto-select GPU if available
+device = 0 if torch.cuda.is_available() else -1
+print(f"✅ Using {'GPU' if device == 0 else 'CPU'}")
 
-# Clean input text
-def clean_text(raw_text: str) -> str:
-    raw_text = re.sub(r'\s+', ' ', raw_text)
-    raw_text = re.sub(r'(©\s+\d{4}.*?$|Last updated.*?$)', '', raw_text, flags=re.IGNORECASE)
-    return raw_text.strip()
+# Load summarization pipeline
+summarizer = pipeline(
+    "summarization",
+    model="sshleifer/distilbart-cnn-12-6",
+    device=device
+)
 
-# Chunk text by sentence and token length
-def split_text(text, max_tokens=1024):
-    sentences = re.split(r'(?<=[.!?]) +', text)
-    chunks = []
-    current_chunk = ""
+# Risk keywords for tagging
+RISK_KEYWORDS = {
+    "data sharing": ["share your data", "third parties", "sell your data"],
+    "no refunds": ["no refunds", "non-refundable", "cannot return"],
+    "tracking": ["cookies", "track your behavior", "analytics tools"],
+    "liability": ["not responsible", "no liability", "at your own risk"],
+    "arbitration": ["binding arbitration", "waive your right", "no class action"]
+}
 
-    for sentence in sentences:
-        if not sentence.strip():
-            continue
-        prospective_chunk = current_chunk + " " + sentence if current_chunk else sentence
-        token_ids = tokenizer.encode(prospective_chunk, add_special_tokens=False)
-        
-        # 🚫 Drop invalid chunks
-        if max(token_ids) >= tokenizer.vocab_size:
-            print("⚠️ Skipping chunk due to out-of-vocab token.")
-            continue
+def split_text(text, max_words=800):
+    """Split text into smaller chunks to avoid token overflow."""
+    words = text.split()
+    return [" ".join(words[i:i+max_words]) for i in range(0, len(words), max_words)]
 
-        if len(token_ids) <= max_tokens:
-            current_chunk = prospective_chunk
-        else:
-            chunks.append(current_chunk.strip())
-            current_chunk = sentence
-    if current_chunk:
-        chunks.append(current_chunk.strip())
-
-    return chunks
-
-
-# Run summarization
 def analyze_text(text: str) -> str:
-    if not text.strip():
-        return "No content provided."
+    """
+    Summarize T&C text into 5 structured sections with shorter but detailed summary.
+    """
+    # 🔹 Step 1: Split into safe chunks
+    chunks = split_text(text)
 
-    cleaned_text = clean_text(text)
-    chunks = split_text(cleaned_text, max_tokens=1024)
-
-    summaries = []
+    # 🔹 Step 2: Summarize each chunk
+    chunk_summaries = []
     for chunk in chunks:
-        try:
-            result = summarizer(chunk, max_length=200, min_length=40, do_sample=False)
-            summaries.append(result[0]["summary_text"])
-        except IndexError as e:
-            print(f"❌ Skipping chunk due to error: {e}")
-            continue
+        summary = summarizer(
+            chunk,
+            max_length=200,  # smaller max for each chunk
+            min_length=50,
+            do_sample=False
+        )[0]["summary_text"]
+        chunk_summaries.append(summary)
 
-    return " ".join(summaries) if summaries else "⚠️ Summary could not be generated."
+    # 🔹 Step 3: Combine summaries
+    raw_summary = " ".join(chunk_summaries)
 
-# Optional: tag known risk phrases
-def tag_risks(summary: str) -> list:
-    tags = {
-        "data sharing": ["share your data", "third parties", "sell your data"],
-        "no refunds": ["no refunds", "non-refundable", "cannot return"],
-        "tracking": ["cookies", "track your behavior", "analytics tools"],
-        "liability": ["not responsible", "no liability", "at your own risk"],
-        "arbitration": ["binding arbitration", "waive your right", "no class action"]
+    # 🔹 Step 4: Structure into sections
+    sections = {
+        "📄 Overview": "",
+        "🔐 Data Usage": "",
+        "💳 Payments & Refunds": "",
+        "📍 Tracking & Cookies": "",
+        "⚖️ Liability & Disputes": ""
     }
 
-    matched_tags = []
-    for tag, keywords in tags.items():
-        for phrase in keywords:
-            if phrase in summary.lower():
-                matched_tags.append(tag)
-                break
+    sentences = raw_summary.split(". ")
+    chunk_size = max(1, len(sentences) // len(sections))
+    section_list = list(sections.keys())
 
-    return matched_tags
+    idx = 0
+    for i, sentence in enumerate(sentences):
+        sections[section_list[idx]] += sentence.strip() + ". "
+        if (i + 1) % chunk_size == 0 and idx < len(section_list) - 1:
+            idx += 1
+
+    # Combine into final structured summary
+    final_summary = "\n\n".join([f"{title}:\n{content.strip()}" for title, content in sections.items()])
+    return final_summary
+
+def tag_risks(summary: str):
+    """
+    Scan the summary for risk keywords and return tags list.
+    """
+    found_tags = []
+    lower_summary = summary.lower()
+    for tag, phrases in RISK_KEYWORDS.items():
+        for phrase in phrases:
+            if phrase in lower_summary:
+                found_tags.append(tag)
+                break
+    return list(set(found_tags))
