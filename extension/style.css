@@ -1,18 +1,36 @@
 body {
   font-family: Arial, sans-serif;
-  padding: 10px;
+  padding: 15px;
   width: 300px;
 }
-h1 {
-  font-size: 20px;
+h3 {
+  font-size: 18px;
   margin-bottom: 10px;
 }
 button {
-  padding: 8px;
-  margin-bottom: 15px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 10px;
   cursor: pointer;
+  width: 100%;
+  margin-bottom: 10px;
 }
-#result {
-  font-size: 14px;
+#summary {
+  margin-top: 10px;
   white-space: pre-wrap;
+  font-size: 13px;
+}
+#risks {
+  margin-top: 8px;
+}
+.risk-tag {
+  display: inline-block;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  color: #856404;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 12px;
+  margin: 2px 2px 2px 0;
 }

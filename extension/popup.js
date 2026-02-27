@@ -27,6 +27,16 @@ document.getElementById("summarizeBtn").addEventListener("click", async () => {
 
     if (data.summary) {
       document.getElementById("summary").innerText = data.summary;
+      const risksEl = document.getElementById("risks");
+      risksEl.innerHTML = "";
+      if (data.risks && data.risks.length > 0) {
+        data.risks.forEach(risk => {
+          const tag = document.createElement("span");
+          tag.className = "risk-tag";
+          tag.textContent = "⚠️ " + risk;
+          risksEl.appendChild(tag);
+        });
+      }
     } else {
       document.getElementById("summary").innerText = "⚠️ Summary not received.";
     }

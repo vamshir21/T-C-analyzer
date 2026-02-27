@@ -22,9 +22,9 @@ def split_text(text, max_tokens=1024):
             continue
         prospective_chunk = current_chunk + " " + sentence if current_chunk else sentence
         token_ids = tokenizer.encode(prospective_chunk, add_special_tokens=False)
-        
-        # 🚫 Drop invalid chunks
-        if max(token_ids) >= tokenizer.vocab_size:
+
+        # Drop invalid chunks (skip if empty or contains out-of-vocab tokens)
+        if not token_ids or max(token_ids) >= tokenizer.vocab_size:
             print("⚠️ Skipping chunk due to out-of-vocab token.")
             continue
 
