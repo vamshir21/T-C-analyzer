@@ -1,7 +1,7 @@
 // background.js
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "analyze_tnc") {
-        fetch("http://localhost:8000/analyze", {
+        fetch("http://127.0.0.1:8000/analyze/", {
 
             method: "POST",
             headers: {

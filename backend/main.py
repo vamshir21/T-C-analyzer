@@ -1,17 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from model import analyze_text
+from model import analyze_text, tag_risks
 
 app = FastAPI()
 
-# Enable CORS
+# Enable CORS for local extension use only
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For local testing
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["POST"],
+    allow_headers=["Content-Type"],
 )
 
 class TextRequest(BaseModel):
@@ -20,4 +20,5 @@ class TextRequest(BaseModel):
 @app.post("/analyze/")
 def analyze(request: TextRequest):
     summary = analyze_text(request.text)
-    return {"summary": summary}
+    risks = tag_risks(summary)
+    return {"summary": summary, "risks": risks}
